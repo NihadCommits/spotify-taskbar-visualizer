@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using Windows.Media;
 using static SpotifyTaskbarVisualizer.NativeMethods;
@@ -19,6 +20,7 @@ public partial class OverlayWindow : Window
     private List<RECT> _occupied = [];
     private WidgetMode _mode = WidgetMode.Full;
     private bool _scanning;
+    private bool _hadSession;
 
     public OverlayWindow()
     {
@@ -26,18 +28,23 @@ public partial class OverlayWindow : Window
         _timer.Tick += (_, _) => RenderPosition();
         _layoutTimer.Tick += async (_, _) =>
         {
-            await ScanAsync();
-            UpdatePlacement();
+            await RefreshAsync();
             _zOrder?.BringToFront(); // Fallback in case a foreground event was missed.
         };
-        SourceInitialized += (_, _) =>
+        // The window is created hidden (see App); UpdatePlacement shows it once Spotify plays.
+        SourceInitialized += async (_, _) =>
         {
             // Tool window: no Alt+Tab entry. No-activate: clicks never take focus from the active app.
             var hwnd = new WindowInteropHelper(this).Handle;
             SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
             _zOrder = new ZOrderGuard(hwnd);
             _zOrder.ForegroundChanged += UpdatePlacement;
-            UpdatePlacement();
+            // Close after the tray menu's click handler has returned, since closing disposes the menu.
+            _trayIcon = new TrayIcon(ToggleDebug, () => Dispatcher.InvokeAsync(Close));
+            _layoutTimer.Start();
+            _media = await MediaService.CreateAsync();
+            _media.Changed += Render;
+            Render();
         };
         Closed += (_, _) =>
         {
@@ -46,17 +53,13 @@ public partial class OverlayWindow : Window
         };
         SizeChanged += (_, _) => UpdatePlacement();
         DpiChanged += (_, _) => UpdatePlacement();
-        Loaded += async (_, _) =>
-        {
-            // Close after the tray menu's click handler has returned, since closing disposes the menu.
-            _trayIcon = new TrayIcon(ToggleDebug, () => Dispatcher.InvokeAsync(Close));
-            await ScanAsync();
-            UpdatePlacement();
-            _layoutTimer.Start();
-            _media = await MediaService.CreateAsync();
-            _media.Changed += Render;
-            Render();
-        };
+    }
+
+    // Without a Spotify session there is nothing to place, so the scan is skipped and the app idles.
+    private async Task RefreshAsync()
+    {
+        if (_media?.HasSession == true) await ScanAsync();
+        UpdatePlacement();
     }
 
     // Keeps the last known layout if a scan fails, e.g. while the taskbar is changing.
@@ -73,8 +76,9 @@ public partial class OverlayWindow : Window
     // from Win32 are converted to WPF DIPs and back.
     private void UpdatePlacement()
     {
-        var bar = TaskbarLocator.Get();
-        if (bar is not { IsBottom: true, IsAutoHide: false } b || FullscreenDetector.IsActive(b.Handle))
+        if (_media?.HasSession != true
+            || TaskbarLocator.Get() is not { IsBottom: true, IsAutoHide: false } b
+            || FullscreenDetector.IsActive(b.Handle))
         {
             Visibility = Visibility.Hidden;
             _debug?.Hide();
@@ -116,10 +120,7 @@ public partial class OverlayWindow : Window
     // Compact keeps only the title and previous/play/next.
     private void ApplyVisibility()
     {
-        var hasSession = _media?.HasSession == true;
         var full = _mode == WidgetMode.Full;
-        Player.Visibility = Show(hasSession);
-        EmptyText.Visibility = Show(!hasSession);
         CoverImage.Visibility = ArtistText.Visibility = Show(full);
         PositionText.Visibility = SeekArea.Visibility = DurationText.Visibility = Show(full);
         ShuffleButton.Visibility = Show(full && _media?.CanShuffle == true);
@@ -145,8 +146,15 @@ public partial class OverlayWindow : Window
     private void Render()
     {
         var media = _media!;
+        if (media.HasSession != _hadSession)
+        {
+            _hadSession = media.HasSession;
+            _ = RefreshAsync(); // Show or hide right away instead of on the next tick.
+        }
         ApplyVisibility();
 
+        if (media.Title != TitleText.Text || media.Artist != ArtistText.Text)
+            TrackArea.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200)));
         CoverImage.Source = media.Cover;
         TitleText.Text = media.Title;
         ArtistText.Text = media.Artist;
@@ -180,6 +188,8 @@ public partial class OverlayWindow : Window
 
     private void SeekArea_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
         _media?.Seek(e.GetPosition(SeekArea).X / SeekArea.ActualWidth);
+
+    private void TrackArea_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => SpotifyWindow.Activate();
 
     private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 }

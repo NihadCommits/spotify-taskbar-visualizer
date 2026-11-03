@@ -40,7 +40,6 @@ public sealed class MediaService
         _manager = manager;
         _ui = ui;
         _manager.SessionsChanged += (_, _) => Post(SelectSession);
-        _manager.CurrentSessionChanged += (_, _) => Post(SelectSession);
     }
 
     // Must be called on the UI thread.
@@ -91,13 +90,13 @@ public sealed class MediaService
         catch (Exception) { } // Session vanished; the next event updates the state.
     }
 
+    // Spotify only; other players (e.g. a browser) are ignored.
     private void SelectSession()
     {
         Session? session;
         try
         {
-            session = _manager.GetSessions().FirstOrDefault(s => s.SourceAppUserModelId.Contains("Spotify", StringComparison.OrdinalIgnoreCase))
-                ?? _manager.GetCurrentSession();
+            session = _manager.GetSessions().FirstOrDefault(s => s.SourceAppUserModelId.Contains("Spotify", StringComparison.OrdinalIgnoreCase));
         }
         catch (Exception) { return; }
 

@@ -10,10 +10,14 @@ internal sealed class TrayIcon : IDisposable
 
     public TrayIcon(Action<bool> toggleDebug, Action exit)
     {
+        var autostart = new ToolStripMenuItem("Start with Windows") { CheckOnClick = true, Checked = Autostart.IsEnabled };
+        autostart.CheckedChanged += (_, _) => Autostart.IsEnabled = autostart.Checked;
+
         var debug = new ToolStripMenuItem("Debug overlay") { CheckOnClick = true };
         debug.CheckedChanged += (_, _) => toggleDebug(debug.Checked);
 
         var menu = new ContextMenuStrip();
+        menu.Items.Add(autostart);
         menu.Items.Add(debug);
         menu.Items.Add("Exit", null, (_, _) => exit());
 

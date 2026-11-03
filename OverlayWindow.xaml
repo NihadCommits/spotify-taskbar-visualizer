@@ -17,9 +17,17 @@
                 <Setter.Value>
                     <!-- Near-transparent background keeps the button clickable on a transparent window. -->
                     <ControlTemplate TargetType="Button">
-                        <Border Background="#01000000">
+                        <Border x:Name="Bg" Background="#01000000" CornerRadius="4">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#20FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Bg" Property="Background" Value="#10FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
@@ -38,12 +46,15 @@
                 <MenuItem Header="Exit" Click="Exit_Click" />
             </ContextMenu>
         </Grid.ContextMenu>
-        <TextBlock x:Name="EmptyText" Text="Nothing playing" Foreground="White" Opacity="0.6" Margin="8,0" VerticalAlignment="Center" />
-        <StackPanel x:Name="Player" Orientation="Horizontal" TextElement.Foreground="White" Margin="8,0" VerticalAlignment="Center" Visibility="Collapsed">
-            <Image x:Name="CoverImage" Width="32" Height="32" />
-            <StackPanel Width="160" Margin="8,0" VerticalAlignment="Center">
-                <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
-                <TextBlock x:Name="ArtistText" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+        <StackPanel Orientation="Horizontal" TextElement.Foreground="White" Margin="8,0" VerticalAlignment="Center">
+            <!-- Cover and title: a click brings Spotify to the front. -->
+            <StackPanel x:Name="TrackArea" Orientation="Horizontal" Background="#01000000" Cursor="Hand"
+                        MouseLeftButtonUp="TrackArea_MouseLeftButtonUp">
+                <Image x:Name="CoverImage" Width="32" Height="32" />
+                <StackPanel Width="160" Margin="8,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleText" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="ArtistText" FontSize="11" Opacity="0.7" TextTrimming="CharacterEllipsis" />
+                </StackPanel>
             </StackPanel>
             <Button x:Name="ShuffleButton" Content="&#xE8B1;" Click="Shuffle_Click" />
             <Button Content="&#xE892;" Click="Previous_Click" />
