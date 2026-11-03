@@ -1,25 +1,50 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Threading;
 using Windows.Media;
+using static SpotifyTaskbarVisualizer.NativeMethods;
 
 namespace SpotifyTaskbarVisualizer;
 
-public partial class MainWindow : Window
+public partial class OverlayWindow : Window
 {
+    private const double TrayGap = 8;
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
+    private readonly DispatcherTimer _layoutTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private MediaService? _media;
 
-    public MainWindow()
+    public OverlayWindow()
     {
         InitializeComponent();
         _timer.Tick += (_, _) => RenderPosition();
+        _layoutTimer.Tick += (_, _) => Reposition();
+        SourceInitialized += (_, _) =>
+        {
+            // Tool window: no Alt+Tab entry. No-activate: clicks never take focus from the active app.
+            var hwnd = new WindowInteropHelper(this).Handle;
+            SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+            Reposition();
+        };
+        SizeChanged += (_, _) => Reposition();
+        DpiChanged += (_, _) => Reposition();
         Loaded += async (_, _) =>
         {
+            _layoutTimer.Start();
             _media = await MediaService.CreateAsync();
             _media.Changed += Render;
             Render();
         };
+    }
+
+    // The only place where physical pixels from Win32 are converted to WPF DIPs.
+    private void Reposition()
+    {
+        if (TaskbarLocator.Get() is not { } bar) return;
+        var dpi = System.Windows.Media.VisualTreeHelper.GetDpi(this);
+        Root.Height = bar.Bounds.Height / dpi.DpiScaleY;
+        Top = bar.Bounds.Top / dpi.DpiScaleY;
+        Left = bar.TrayLeft / dpi.DpiScaleX - TrayGap - ActualWidth;
     }
 
     private void Render()
@@ -63,4 +88,6 @@ public partial class MainWindow : Window
 
     private void SeekArea_MouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
         _media?.Seek(e.GetPosition(SeekArea).X / SeekArea.ActualWidth);
+
+    private void Exit_Click(object sender, RoutedEventArgs e) => Close();
 }
