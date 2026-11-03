@@ -10,6 +10,7 @@ internal static class NativeMethods
     public const int ABS_AUTOHIDE = 0x01;
     public const uint ABE_BOTTOM = 3;
     public const int GWL_EXSTYLE = -20;
+    public const int WS_EX_TRANSPARENT = 0x00000020;
     public const int WS_EX_TOOLWINDOW = 0x00000080;
     public const int WS_EX_NOACTIVATE = 0x08000000;
     public static readonly IntPtr HWND_TOPMOST = new(-1);
