@@ -67,6 +67,8 @@ Then enable **Start with Windows** in the tray menu. The autostart entry always 
 
 [MIT](LICENSE)
 
+Not affiliated with or endorsed by Spotify. Spotify is a trademark of Spotify AB.
+
 ## Deutsch
 
 Spotify-Steuerung für Windows, die aussieht wie ein Teil der Taskleiste: ein kleines transparentes Overlay, das auf einem freien Platz der Taskleiste sitzt.
@@ -127,3 +129,5 @@ Danach im Tray-Menü **Start with Windows** einschalten. Der Autostart zeigt imm
 ### Lizenz
 
 [MIT](LICENSE)
+
+Kein offizielles Spotify-Projekt und nicht mit Spotify verbunden. Spotify ist eine Marke der Spotify AB.
