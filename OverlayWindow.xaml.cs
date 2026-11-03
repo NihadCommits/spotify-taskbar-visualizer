@@ -13,19 +13,28 @@ public partial class OverlayWindow : Window
     private readonly DispatcherTimer _timer = new() { Interval = TimeSpan.FromMilliseconds(500) };
     private readonly DispatcherTimer _layoutTimer = new() { Interval = TimeSpan.FromSeconds(1) };
     private MediaService? _media;
+    private ZOrderGuard? _zOrder;
 
     public OverlayWindow()
     {
         InitializeComponent();
         _timer.Tick += (_, _) => RenderPosition();
-        _layoutTimer.Tick += (_, _) => Reposition();
+        _layoutTimer.Tick += (_, _) =>
+        {
+            UpdateVisibility();
+            Reposition();
+            _zOrder?.BringToFront(); // Fallback in case a foreground event was missed.
+        };
         SourceInitialized += (_, _) =>
         {
             // Tool window: no Alt+Tab entry. No-activate: clicks never take focus from the active app.
             var hwnd = new WindowInteropHelper(this).Handle;
             SetWindowLong(hwnd, GWL_EXSTYLE, GetWindowLong(hwnd, GWL_EXSTYLE) | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE);
+            _zOrder = new ZOrderGuard(hwnd);
+            _zOrder.ForegroundChanged += UpdateVisibility;
             Reposition();
         };
+        Closed += (_, _) => _zOrder?.Dispose();
         SizeChanged += (_, _) => Reposition();
         DpiChanged += (_, _) => Reposition();
         Loaded += async (_, _) =>
@@ -35,6 +44,14 @@ public partial class OverlayWindow : Window
             _media.Changed += Render;
             Render();
         };
+    }
+
+    // Hidden while the taskbar is not at the bottom, auto-hides, or a fullscreen app covers its monitor.
+    private void UpdateVisibility()
+    {
+        var bar = TaskbarLocator.Get();
+        var show = bar is { IsBottom: true, IsAutoHide: false } && !FullscreenDetector.IsActive(bar.Value.Handle);
+        Visibility = show ? Visibility.Visible : Visibility.Hidden;
     }
 
     // The only place where physical pixels from Win32 are converted to WPF DIPs.
